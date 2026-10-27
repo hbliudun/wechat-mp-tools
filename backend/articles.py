@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import json
+import logging
 import time
 import re
 import urllib.parse
@@ -28,6 +29,8 @@ from backend.accounts import biz_to_book_id
 from backend.wechat_url import normalize_wechat_short_url, short_id_from_review_id
 from backend.runtime import desktop_available, host_path_hint
 from backend.request_profile import sleep_backoff, sleep_throttled
+
+logger = logging.getLogger(__name__)
 
 articles_bp = Blueprint("articles", __name__, url_prefix="/api/articles")
 

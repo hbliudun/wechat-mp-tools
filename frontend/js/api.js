@@ -153,6 +153,20 @@ const API = {
         openParent(path) { return API.post('/api/articles/open-parent', { path }); },
     },
 
+    // ── Reading Directory API ────────────────────────
+    reading: {
+        overview() { return API.get('/api/reading/overview'); },
+        index(fakeid) { return API.get(`/api/reading/index?fakeid=${encodeURIComponent(fakeid)}`); },
+        mark(payload) { return API.post('/api/reading/mark', payload); },
+        markBatch(payload) { return API.post('/api/reading/mark-batch', payload); },
+        setLastRead(payload) { return API.post('/api/reading/last-read', payload); },
+        bookmarks() { return API.get('/api/reading/bookmarks'); },
+        reset(fakeid) { return API.post('/api/reading/reset', { fakeid }); },
+        sync(payload) { return API.post('/api/reading/sync', payload); },
+        syncStatus(taskId) { return API.get(`/api/reading/sync-status/${taskId}`, { showError: false }); },
+        cancelSync(taskId) { return API.post(`/api/reading/sync-cancel/${taskId}`); },
+    },
+
     // ── Proxy API ────────────────────────────────────
     proxy: {
         getConfig() { return API.get('/api/proxy/config'); },

@@ -302,6 +302,7 @@ const HistoryPage = {
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button class="btn btn-secondary btn-sm" onclick="HistoryPage.openFolder()">打开下载目录</button>
+                        <button class="btn btn-secondary btn-sm" onclick="HistoryPage.openReadingDirectory()" title="按公众号查看完整历史目录、已读进度与书签">📖 阅读目录</button>
                         <button class="btn btn-primary btn-sm" onclick="HistoryPage.showRssModal()" style="background: var(--gradient-primary); color: white; display: inline-flex; align-items: center;">
                             <svg style="width: 14px; height: 14px; margin-right: 6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
                             RSS 订阅
@@ -916,6 +917,18 @@ const HistoryPage = {
         } else {
             const d = new Date(timestamp * 1000);
             return `${d.getMonth() + 1}月${d.getDate()}日`;
+        }
+    },
+
+    /**
+     * 跳到「阅读目录」页；如果左侧筛选了某个公众号，直接定位到它
+     */
+    openReadingDirectory() {
+        const account = document.getElementById('history-account-filter')?.value || '';
+        if (account) {
+            Router.navigate('reading', { account });
+        } else {
+            Router.navigate('reading');
         }
     },
 

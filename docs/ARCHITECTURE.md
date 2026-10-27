@@ -60,7 +60,7 @@
 
 | 平台 | 第一方入口 | 架构特征 |
 |---|---|---|
-| 微信公众号/微信读书 | `backend/auth.py`、`backend/accounts.py`、`backend/articles.py`、`backend/downloader.py` | 扫码登录得到 token 并写入账号池；文章列表经 `WEREAD_PLATFORM_URL`，下载任务在 `backend/articles.py` 的字典中保存状态，实际文件生成委托给 `backend/downloader.py` |
+| 微信公众号/微信读书 | `backend/auth.py`、`backend/accounts.py`、`backend/articles.py`、`backend/downloader.py`、`backend/reading.py` | 扫码登录得到 token 并写入账号池；文章列表经 `WEREAD_PLATFORM_URL`，下载任务在 `backend/articles.py` 的字典中保存状态，实际文件生成委托给 `backend/downloader.py`；`backend/reading.py` 把分页列表落成本地目录索引，并提供已读/书签/阅读位置状态 |
 | 微信视频号 | `backend/channels.py`、`backend/mitm_proxy.py`、`injection_scripts/src/` | 解析有元宝 Cookie、自定义 Worker 和 CDN 兜底路径；采集页面靠 mitmproxy 注入；同步数据落 JSON，下载线程用 ISAAC64 key 解密前 128 KiB |
 | 抖音 | `backend/douyin.py`、`backend/douyin_auth.py`、`backend/douyin_login.py`、`backend/douyin_sign.py` | 直接 HTTP API；`DouyinClient` 负责 URL 解析、a_bogus 签名和分页；全局单任务状态、取消 Event 和 daemon thread 支持单条/主页/喜欢/合集/直播 |
 | 快手 | `backend/kuaishou.py`、`backend/kuaishou_auth.py` | `KuaishouClient` 调 live_api 与 `rest/v/profile/feed`；单作品可匿名解析，主页列表依赖 Cookie，批量下载为单任务状态 |
@@ -130,6 +130,7 @@
 | 微信读书保活 | `backend/account_pool.py` 导入全局单例 | daemon thread，15 秒后每 15 分钟 | 进程内守护，不独立持久化 |
 | RSS 调度 | `app.py` 导入时 `rss_scheduler.start()` | daemon loop 每 30 秒 + 最多 50 worker 线程 | `stop()` 设置 Event 并 shutdown executor |
 | 文章下载 | `backend/articles.py` | 每个任务一个 daemon thread，状态字典加锁 | completed/failed/cancelled |
+| 目录同步 | `backend/reading.py::_do_sync()` | 每个公众号一个 daemon thread，复用 `_fetch_articles_page` 分页扫描 | completed/failed/cancelled，增量模式遇整页已知即停 |
 | 平台批量下载 | `backend/douyin.py`、`backend/kuaishou.py`、`backend/xiaohongshu.py`、`backend/bilibili.py`、`backend/channels.py` | 平台级单任务或 task id 字典 + daemon thread/Event | 可取消，写平台历史 |
 | 视频号代理 | `backend/mitm_proxy.py::ProxyManager` | 单例状态 + mitmproxy daemon thread | 还原系统代理、关闭 master、恢复 NO_PROXY |
 | 转码 | `backend/transcode.py::start_worker()` | `queue.Queue` + 单 daemon worker，一次一个 ffmpeg 子进程 | 任务状态持久在进程字典 |
@@ -146,6 +147,8 @@
 | `data/account_pool.json`、`data/wechat_mp_config.json` | 微信读书账号池与旧配置 | `backend/account_pool.py`、`backend/auth.py` |
 | `data/accounts.json` | 收藏公众号与 RSS 订阅 | `backend/accounts.py` |
 | `data/download_history.json` | 公众号文章历史 | `backend/articles.py` |
+| `data/article_index/<fakeid>.json` | 公众号历史文章本地目录（可重建的缓存） | `backend/reading.py` |
+| `data/reading_state.json` | 已读、书签与「上次读到」位置（用户数据，不被同步覆盖） | `backend/reading.py` |
 | `data/articles_full/` | 文章目录、媒体、离线 HTML、纯文本和元数据 | `backend/downloader.py` |
 | `data/rss_articles.json`、`data/rss_subscriptions.json`、`data/rss_upload_log.json` | RSS 缓存、订阅、上传审计 | `backend/rss_scheduler.py` |
 | `data/channels_*` | 视频号历史、收藏、feed、调用日志 | `backend/channels.py`、`backend/mitm_proxy.py` |
