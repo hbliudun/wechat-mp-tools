@@ -31,7 +31,13 @@ jobs:
             $ver = '0.0.0'
           }
           "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "安装包版本号: $ver"
+
+          # Setup.exe 自身的文件版本必须是四段 x.x.x.x
+          $parts = @($ver.Split('.'))
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $ver4 = ($parts[0..3] -join '.')
+          "APP_VERSION4=$ver4" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "安装包版本号: $ver (文件版本 $ver4)"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -66,19 +72,30 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          $candidates = @(
-            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
-          )
-          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          # 兼容 Inno Setup 6 与 7，路径都找不到时再全盘搜一次 ISCC.exe
+          $iscc = $null
+          foreach ($root in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+            if (-not $root) { continue }
+            foreach ($dir in @('Inno Setup 7', 'Inno Setup 6')) {
+              $candidate = Join-Path $root "$dir\ISCC.exe"
+              if (Test-Path $candidate) { $iscc = $candidate; break }
+            }
+            if ($iscc) { break }
+          }
+          if (-not $iscc) {
+            $iscc = Get-ChildItem -Path @(${env:ProgramFiles(x86)}, $env:ProgramFiles) `
+                      -Filter 'ISCC.exe' -Recurse -ErrorAction SilentlyContinue |
+                    Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          }
           if (-not $iscc) { throw '找不到 ISCC.exe，Inno Setup 安装失败' }
           "ISCC_PATH=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & $iscc /? 2>&1 | Select-Object -First 2
           Write-Host "ISCC: $iscc"
 
       - name: Build Windows Full Installer
         shell: pwsh
         run: |
-          & "$env:ISCC_PATH" "/DMyAppVersion=$env:APP_VERSION" "/DMyAppEdition=Full" "installer\wechat_mp_tools.iss"
+          & "$env:ISCC_PATH" "/DMyAppVersion=$env:APP_VERSION" "/DMyAppVersion4=$env:APP_VERSION4" "/DMyAppEdition=Full" "installer\wechat_mp_tools.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败 (exit $LASTEXITCODE)" }
           Get-ChildItem dist-installer\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table
 
@@ -97,7 +114,7 @@ jobs:
       - name: Build Windows Lite Installer
         shell: pwsh
         run: |
-          & "$env:ISCC_PATH" "/DMyAppVersion=$env:APP_VERSION" "/DMyAppEdition=Lite" "installer\wechat_mp_tools.iss"
+          & "$env:ISCC_PATH" "/DMyAppVersion=$env:APP_VERSION" "/DMyAppVersion4=$env:APP_VERSION4" "/DMyAppEdition=Lite" "installer\wechat_mp_tools.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败 (exit $LASTEXITCODE)" }
           Get-ChildItem dist-installer\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table
 

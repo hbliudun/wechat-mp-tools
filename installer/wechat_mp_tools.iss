@@ -28,6 +28,12 @@
   #define MyAppEdition "Full"
 #endif
 
+; Setup.exe 自身的文件版本（Windows 属性页显示的就是这个）。
+; 必须是四段 x.x.x.x，CI 会把 APP_VERSION 补齐成四段传进来。
+#ifndef MyAppVersion4
+  #define MyAppVersion4 "0.0.0.0"
+#endif
+
 [Setup]
 ; AppId 必须固定不变，否则升级会变成"并存安装"而不是覆盖升级
 AppId={{8F3C2B1A-5D64-4E2F-9A7B-1C2D3E4F5A6B}
@@ -38,6 +44,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
+VersionInfoVersion={#MyAppVersion4}
 
 ; ── 安装位置：每用户，装到 %LOCALAPPDATA%\Programs ──────────────────────
 ; 关键：程序冻结后把 data/（配置、下载的文章、RSS 缓存）写在 exe 同级目录
@@ -55,11 +62,10 @@ OutputBaseFilename=WeChat-MP-Tools-{#MyAppVersion}-{#MyAppEdition}-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-; 仅 64 位。这里用 x64 而不是 6.3 才引入的 x64compatible：
-; x64 在新旧版本上都能编译（6.3+ 只是提示已弃用），不会因为 CI 装到的
-; Inno 版本偏老而直接编译失败。
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+; 仅 64 位。x64compatible 在 Inno 6.3 及以上（含 7.x）都支持；
+; 更老的 6.2 及以下会报未知架构，那时把这两行换成 x64 即可。
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
 ; SetupIconFile=app.ico
 ; LicenseFile=..\LICENSE
