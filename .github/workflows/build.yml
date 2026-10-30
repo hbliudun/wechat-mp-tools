@@ -15,6 +15,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Resolve App Version
+        shell: pwsh
+        run: |
+          # 打 tag（v2.3.5）时用 tag 里的版本号；手动触发（分支）时回落到 config.py
+          $ver = ''
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $ver = $env:GITHUB_REF_NAME }
+          if (-not $ver) {
+            $cfg = Get-Content backend/config.py -Raw
+            if ($cfg -match 'APP_VERSION\s*=\s*"([^"]+)"') { $ver = $Matches[1] }
+          }
+          $ver = ($ver -replace '^[vV]', '').Trim()
+          if ($ver -notmatch '^\d+(\.\d+){1,3}$') {
+            Write-Host "::warning::无法从 '$ver' 解析版本号，安装包回落为 0.0.0"
+            $ver = '0.0.0'
+          }
+          "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "安装包版本号: $ver"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -44,6 +62,26 @@ jobs:
         run: |
           Compress-Archive -Path "dist\WeChat MP Tools" -DestinationPath WeChat_MP_Tools_Windows_Full.zip
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw '找不到 ISCC.exe，Inno Setup 安装失败' }
+          "ISCC_PATH=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "ISCC: $iscc"
+
+      - name: Build Windows Full Installer
+        shell: pwsh
+        run: |
+          & "$env:ISCC_PATH" "/DMyAppVersion=$env:APP_VERSION" "/DMyAppEdition=Full" "installer\wechat_mp_tools.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败 (exit $LASTEXITCODE)" }
+          Get-ChildItem dist-installer\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table
+
       - name: Build Windows EXE (Lite)
         shell: powershell
         run: |
@@ -55,6 +93,20 @@ jobs:
         shell: powershell
         run: |
           Compress-Archive -Path "dist\WeChat MP Tools" -DestinationPath WeChat_MP_Tools_Windows_Lite.zip
+
+      - name: Build Windows Lite Installer
+        shell: pwsh
+        run: |
+          & "$env:ISCC_PATH" "/DMyAppVersion=$env:APP_VERSION" "/DMyAppEdition=Lite" "installer\wechat_mp_tools.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败 (exit $LASTEXITCODE)" }
+          Get-ChildItem dist-installer\*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}} | Format-Table
+
+      - name: Upload Windows Installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: WeChat-MP-Tools-Windows-Installer
+          path: dist-installer/*.exe
+          retention-days: 7
 
       - name: Upload Windows Full Artifact
         uses: actions/upload-artifact@v4
@@ -182,6 +234,7 @@ jobs:
           files: |
             artifacts/WeChat-MP-Tools-Windows-Full/WeChat_MP_Tools_Windows_Full.zip
             artifacts/WeChat-MP-Tools-Windows-Lite/WeChat_MP_Tools_Windows_Lite.zip
+            artifacts/WeChat-MP-Tools-Windows-Installer/WeChat-MP-Tools-*-Setup.exe
             artifacts/WeChat-MP-Tools-macOS-ARM64-Full/WeChat_MP_Tools_macOS_ARM64_Full.zip
             artifacts/WeChat-MP-Tools-macOS-ARM64-Lite/WeChat_MP_Tools_macOS_ARM64_Lite.zip
             artifacts/WeChat-MP-Tools-macOS-x86-64-Full/WeChat_MP_Tools_macOS_x86-64_Full.zip
